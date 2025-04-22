@@ -4,7 +4,6 @@ from utils import mask_pii, build_response
 from models import load_model, predict_category
 
 app = FastAPI()
-
 model, encoder = load_model()
 
 class EmailRequest(BaseModel):
@@ -16,6 +15,7 @@ def classify_email(request: EmailRequest):
     masked_email, entities = mask_pii(original_email)
     category = predict_category(masked_email, model, encoder)
     return build_response(original_email, masked_email, entities, category)
+
 
 @app.get("/")
 def root():
