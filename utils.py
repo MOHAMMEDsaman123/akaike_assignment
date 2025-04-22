@@ -1,35 +1,60 @@
 import re
-import json
-import pandas as pd
 
-PII_PATTERNS = {
-    "email": r"\b[\w\.-]+@[\w\.-]+\.\w{2,4}\b",
-    "phone_number": r"\b(?:\+91[-\s]?)?[6-9]\d{9}\b",
-    "dob": r"\b(?:\d{1,2}[-/th|st|nd|rd\s]+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[-/\s]*\d{2,4})\b",
-    "aadhar_num": r"\b\d{4}[-\s]?\d{4}[-\s]?\d{4}\b",
-    "credit_debit_no": r"\b(?:\d{4}[-\s]?){3}\d{4}\b",
-    "cvv_no": r"\b\d{3}\b",
-    "expiry_no": r"\b(0[1-9]|1[0-2])/?([0-9]{2})\b"
+# Carefully ordered to prevent misclassification (Aadhar before Expiry/CVV)
+PII_PATTERNS = [
+    ("aadhar_num", r"\b\d{4}[-\s]?\d{4}[-\s]?\d{4}\b"),
+    ("email", r"\b[\w\.-]+@[\w\.-]+\.\w{2,4}\b"),
+    ("phone_number", r"\b(?:\+91[-\s]?)?[6-9]\d{9}\b"),
+    ("dob", r"\b(?:\d{1,2}(?:st|nd|rd|th)?[-\s]*(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[-/\s]*\d{2,4})\b"),
+    ("credit_debit_no", r"\b(?:\d{4}[-\s]?){3}\d{4}\b"),
+    ("cvv_no", r"\b\d{3}\b"),
+    ("expiry_no", r"\b(0[1-9]|1[0-2])/?([0-9]{2})\b"),
+    ("rupee_amount", r"₹\s?\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?")
+]
+
+LABEL_MAPPING = {
+    "email": "EMAIL",
+    "phone_number": "PHONE",
+    "dob": "DOB",
+    "aadhar_num": "AADHAR",
+    "credit_debit_no": "CARD",
+    "cvv_no": "CVV",
+    "expiry_no": "EXPIRY",
+    "rupee_amount": "AMOUNT"
 }
 
 def mask_pii(text):
-    masked_text = text
     entities = []
+    matches = []
+    occupied = set()
 
-    for ent_type, pattern in PII_PATTERNS.items():
-        for match in re.finditer(pattern, masked_text):
-            start, end = match.start(), match.end()
+    for ent_type, pattern in PII_PATTERNS:
+        for match in re.finditer(pattern, text):
+            start, end = match.span()
+
+            # Avoid overlapping spans
+            if any(i in occupied for i in range(start, end)):
+                continue
+
             original = match.group()
-            masked = masked = "[" + ent_type + "]"
+            matches.append((start, end, ent_type, original))
+            occupied.update(range(start, end))
 
-            masked_text = masked_text[:start] + masked + masked_text[end:]
-            entities.append({
-                "position": [start, start + len(masked)],
-                "classification": ent_type,
-                "entity": original
-            })
+    # Replace text backwards to preserve indexes
+    matches.sort(reverse=True, key=lambda x: x[0])
+    masked_text = text
 
-    return masked_text, entities
+    for start, end, ent_type, original in matches:
+        label = LABEL_MAPPING.get(ent_type, ent_type.upper())
+        mask_token = f"[{label}]"
+        masked_text = masked_text[:start] + mask_token + masked_text[end:]
+        entities.append({
+            "position": [start, start + len(mask_token)],
+            "classification": label,
+            "entity": original
+        })
+
+    return masked_text, entities[::-1]  # Restore original order for output
 
 def build_response(input_email, masked_email, entities, category):
     return {
