@@ -26,4 +26,11 @@ uvicorn app:app --reload
 ```
 
 ## Endpoint
-**POST /classify_email**
+POST /classify_email
+
+## Input Img
+![image](https://github.com/user-attachments/assets/b22fd351-2dd7-4fb4-b47c-0f383698f04c)
+
+## Output Img
+![image](https://github.com/user-attachments/assets/9bf6d9d4-e98d-4ca1-a0de-a14854f918ae)
+
