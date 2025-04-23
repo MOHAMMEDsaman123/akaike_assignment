@@ -18,7 +18,7 @@ Place your dataset in the same directory and name it `combined_emails_with_natur
 ```bash
 python models.py
 ```
-now u will get 2 files that must be present before running the python app.py command
+now u will get 2 files that must be present before running the `python app.py` command
 
 ## Run the API
 ```bash
